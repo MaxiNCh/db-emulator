@@ -6,7 +6,7 @@ final class DataBase
 {
     private bool $isConnected = false;
 
-    public function connect(): bool
+    public function connect(): string
     {
         sleep(1);
         $this->isConnected = true;
@@ -53,20 +53,53 @@ final class DataBase
 
 class DataBaseHelper
 {
-    public function connectAndFetch($id)
+    const FETCH_ACTION = 'fetch';
+    const INSERT_ACTION = 'insert';
+    const BATCH_INSERT = 'batchInsert';
+
+    private DataBase $dataBase;
+
+    public function __construct(private int $reconnect_attempts = 10)
     {
-        $dataBase = new DataBase();
-        $dataBase->connect();
-        $result = $dataBase->fetch($id);
-        return $result;
+        $this->connect();
     }
 
-    public function connectAndInsert($id)
+    public function connect()
     {
-        $dataBase = new DataBase();
-        $dataBase->connect();
-        $result = $dataBase->insert($id);
-        return $result;
+        $this->dataBase = new DataBase();
+        $this->dataBase->connect();
+    }
+
+    public function fetch($id)
+    {
+        return $this->requestWithRecconnection(self::FETCH_ACTION, $id);
+    }
+
+    public function insert($id)
+    {
+        return $this->requestWithRecconnection(self::INSERT_ACTION, $id);
+    }
+
+    private function requestWithRecconnection(string $action, $id): string
+    {
+        if (!is_callable([$this->dataBase, $action])) {
+            throw new Exception('Not allowed action');
+        }
+        $attempts = 1;
+
+        do {
+            try {
+                return $this->dataBase->$action($id);
+            } catch (Exception $e) {
+                $attempts++;
+
+                if ($e->getMessage() !== 'No connection' || $attempts > $this->reconnect_attempts) {
+                    throw $e;
+                }
+
+                $this->dataBase->connect();
+            }
+        } while ($attempts <= $this->reconnect_attempts);
     }
 }
 
@@ -74,8 +107,8 @@ function step1($dataToFetch)
 {
     $dataBaseHelper = new DataBaseHelper();
 
-    for ($i = 1; $i < count($dataToFetch); $i++) {
-        print($dataBaseHelper->connectAndFetch($dataToFetch[$i]));
+    for ($i = 0; $i < count($dataToFetch); $i++) {
+        print($dataBaseHelper->fetch($dataToFetch[$i]));
         print(PHP_EOL);
     }
 }
@@ -84,8 +117,8 @@ function step2($dataToInsert)
 {
     $dataBaseHelper = new DataBaseHelper();
 
-    for ($i = 0; $i <= count($dataToInsert); $i++) {
-        print($dataBaseHelper->connectAndInsert($dataToInsert[$i]));
+    for ($i = 0; $i < count($dataToInsert); $i++) {
+        print($dataBaseHelper->insert($dataToInsert[$i]));
         print(PHP_EOL);
     }
 }
