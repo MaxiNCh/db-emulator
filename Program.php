@@ -57,11 +57,24 @@ class DataBaseHelper
     const INSERT_ACTION = 'insert';
     const BATCH_INSERT = 'batchInsert';
 
+    const MAX_RECONNECTS = 10;
+
     private DataBase $dataBase;
 
-    public function __construct(private int $reconnect_attempts = 10)
+    private function __construct()
     {
         $this->connect();
+    }
+
+    public static function getInstance()
+    {
+        static $instance = null;
+
+        if (is_null($instance)) {
+            $instance = new static();
+        }
+
+        return $instance;
     }
 
     public function connect()
@@ -93,19 +106,19 @@ class DataBaseHelper
             } catch (Exception $e) {
                 $attempts++;
 
-                if ($e->getMessage() !== 'No connection' || $attempts > $this->reconnect_attempts) {
+                if ($e->getMessage() !== 'No connection' || $attempts > self::MAX_RECONNECTS) {
                     throw $e;
                 }
 
                 $this->dataBase->connect();
             }
-        } while ($attempts <= $this->reconnect_attempts);
+        } while ($attempts <= self::MAX_RECONNECTS);
     }
 }
 
 function step1($dataToFetch)
 {
-    $dataBaseHelper = new DataBaseHelper();
+    $dataBaseHelper = DataBaseHelper::getInstance();
 
     for ($i = 0; $i < count($dataToFetch); $i++) {
         print($dataBaseHelper->fetch($dataToFetch[$i]));
@@ -115,7 +128,7 @@ function step1($dataToFetch)
 
 function step2($dataToInsert)
 {
-    $dataBaseHelper = new DataBaseHelper();
+    $dataBaseHelper = DataBaseHelper::getInstance();
 
     for ($i = 0; $i < count($dataToInsert); $i++) {
         print($dataBaseHelper->insert($dataToInsert[$i]));
